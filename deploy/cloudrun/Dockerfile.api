@@ -1,0 +1,57 @@
+# syntax=docker/dockerfile:1
+FROM python:3.11-slim
+
+WORKDIR /app
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install dependencies first (cached unless pyproject.toml changes)
+COPY backend/pyproject.toml .
+RUN --mount=type=cache,target=/root/.cache/pip \
+    python -c "import tomllib, pathlib; d = tomllib.loads(pathlib.Path('pyproject.toml').read_text()); pathlib.Path('requirements.txt').write_text('\n'.join(d['project']['dependencies']))" \
+    && pip install -r requirements.txt \
+    && rm requirements.txt
+
+# Pre-download the sentence-transformers model.
+# Positioned BEFORE source copy so source changes don't trigger re-download.
+# Uses HF_TOKEN build secret for authenticated downloads (optional).
+ENV HF_HOME=/app/.cache/huggingface
+RUN --mount=type=cache,target=/root/.cache/huggingface \
+    --mount=type=secret,id=hf_token,env=HF_TOKEN,required=false \
+    python -c "from sentence_transformers import SentenceTransformer; SentenceTransformer('all-MiniLM-L6-v2')" \
+    && cp -r /root/.cache/huggingface/* /app/.cache/huggingface/ 2>/dev/null || true
+
+# Install vendor wheels (neo-modules etc.)
+COPY vendor/*.whl /tmp/wheels/
+RUN --mount=type=cache,target=/root/.cache/pip \
+    pip install /tmp/wheels/*.whl && rm -rf /tmp/wheels
+
+# Copy source and install package
+COPY backend/src/ src/
+RUN --mount=type=cache,target=/root/.cache/pip \
+    pip install --no-deps .
+
+COPY backend/alembic/ alembic/
+COPY backend/alembic.ini .
+COPY backend/scripts/ scripts/
+COPY seed/ /app/seed/
+COPY demo/fallback/ /app/demo/fallback/
+
+# Cloud Run entrypoint (no wait-for-it needed)
+COPY deploy/cloudrun/entrypoint-cloudrun.sh /app/entrypoint.sh
+RUN chmod +x /app/entrypoint.sh
+
+# Create non-root user and writable dirs
+RUN groupadd --gid 1000 appuser \
+    && useradd --uid 1000 --gid appuser --shell /bin/false appuser \
+    && mkdir -p /app/output /app/uploads \
+    && chown -R appuser:appuser /app
+
+USER appuser
+
+EXPOSE 8000
+
+ENTRYPOINT ["/app/entrypoint.sh"]
+CMD ["uvicorn", "chronocanvas.main:app", "--host", "0.0.0.0", "--port", "8000"]

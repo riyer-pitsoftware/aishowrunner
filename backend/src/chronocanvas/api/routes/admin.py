@@ -1,0 +1,252 @@
+import uuid
+from datetime import datetime, timezone
+
+from fastapi import APIRouter, Depends, HTTPException, Query
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from chronocanvas.api.schemas.admin import (
+    CreateValidationRuleRequest,
+    HumanReviewRequest,
+    HumanReviewResponse,
+    UpdateValidationRuleRequest,
+    ValidationQueueItem,
+    ValidationQueueResponse,
+    ValidationRuleResponse,
+    ValidationRulesConfig,
+    ValidationThresholdRequest,
+)
+from chronocanvas.db.engine import get_session
+from chronocanvas.db.models.image import GeneratedImage
+from chronocanvas.db.models.request import GenerationRequest, RequestStatus
+from chronocanvas.db.models.validation import ValidationResult
+from chronocanvas.db.repositories.requests import RequestRepository
+from chronocanvas.db.repositories.validation_rules import (
+    AdminSettingRepository,
+    ValidationRuleRepository,
+)
+from chronocanvas.services.queue import ValidationQueueProjector
+
+router = APIRouter(prefix="/admin", tags=["admin"])
+
+
+# ── Validation Rules ────────────────────────────────────────────────────────
+
+
+@router.get("/validation/rules", response_model=ValidationRulesConfig)
+async def get_validation_rules(session: AsyncSession = Depends(get_session)):
+    rule_repo = ValidationRuleRepository(session)
+    setting_repo = AdminSettingRepository(session)
+    rules = await rule_repo.list_all()
+    threshold = await setting_repo.get_pass_threshold()
+    return ValidationRulesConfig(
+        rules=[ValidationRuleResponse.model_validate(r) for r in rules],
+        pass_threshold=threshold,
+    )
+
+
+@router.put("/validation/rules/{rule_id}", response_model=ValidationRuleResponse)
+async def update_validation_rule(
+    rule_id: uuid.UUID,
+    body: UpdateValidationRuleRequest,
+    session: AsyncSession = Depends(get_session),
+):
+    rule_repo = ValidationRuleRepository(session)
+    updates: dict = {"weight": body.weight}
+    if body.enabled is not None:
+        updates["enabled"] = body.enabled
+    rule = await rule_repo.update(rule_id, **updates)
+    if rule is None:
+        raise HTTPException(status_code=404, detail="Validation rule not found")
+    await session.commit()
+    return ValidationRuleResponse.model_validate(rule)
+
+
+@router.post("/validation/rules", response_model=ValidationRuleResponse, status_code=201)
+async def create_validation_rule(
+    body: CreateValidationRuleRequest,
+    session: AsyncSession = Depends(get_session),
+):
+    rule_repo = ValidationRuleRepository(session)
+    existing = await rule_repo.get_by_category(body.category)
+    if existing is not None:
+        raise HTTPException(
+            status_code=409,
+            detail=f"A rule with category '{body.category}' already exists",
+        )
+    rule = await rule_repo.create(
+        category=body.category,
+        display_name=body.display_name,
+        weight=body.weight,
+        description=body.description,
+        enabled=body.enabled,
+    )
+    await session.commit()
+    return ValidationRuleResponse.model_validate(rule)
+
+
+@router.delete("/validation/rules/{rule_id}", status_code=204)
+async def delete_validation_rule(
+    rule_id: uuid.UUID,
+    session: AsyncSession = Depends(get_session),
+):
+    rule_repo = ValidationRuleRepository(session)
+    deleted = await rule_repo.delete(rule_id)
+    if not deleted:
+        raise HTTPException(status_code=404, detail="Validation rule not found")
+    await session.commit()
+
+
+@router.put("/validation/threshold", response_model=dict)
+async def update_pass_threshold(
+    body: ValidationThresholdRequest,
+    session: AsyncSession = Depends(get_session),
+):
+    setting_repo = AdminSettingRepository(session)
+    await setting_repo.set_pass_threshold(body.pass_threshold)
+    await session.commit()
+    return {"pass_threshold": body.pass_threshold}
+
+
+# ── Review Queue ─────────────────────────────────────────────────────────────
+
+
+async def build_validation_queue_item(
+    session: AsyncSession,
+    req: GenerationRequest,
+    threshold: float,
+    projector: ValidationQueueProjector,
+    *,
+    enforce_threshold: bool = True,
+) -> ValidationQueueItem | None:
+    """Fetch validations + image for a request and project into a queue item."""
+    val_stmt = select(ValidationResult).where(ValidationResult.request_id == req.id)
+    val_result = await session.execute(val_stmt)
+    val_rows = list(val_result.scalars().all())
+
+    img_stmt = select(GeneratedImage).where(GeneratedImage.request_id == req.id).limit(1)
+    img_result = await session.execute(img_stmt)
+    img = img_result.scalars().first()
+
+    return projector.build_item(req, val_rows, threshold, img, enforce_threshold=enforce_threshold)
+
+
+@router.get("/validation/queue", response_model=ValidationQueueResponse)
+async def get_validation_queue(
+    skip: int = 0,
+    limit: int = 50,
+    session: AsyncSession = Depends(get_session),
+):
+    setting_repo = AdminSettingRepository(session)
+    threshold = await setting_repo.get_pass_threshold()
+
+    stmt = (
+        select(GenerationRequest)
+        .where(
+            GenerationRequest.status == RequestStatus.COMPLETED,
+            GenerationRequest.human_review_status.is_(None),
+        )
+        .order_by(GenerationRequest.created_at.desc())
+        .offset(skip)
+        .limit(limit)
+    )
+    result = await session.execute(stmt)
+    requests = list(result.scalars().all())
+
+    projector = ValidationQueueProjector()
+    items = []
+    for req in requests:
+        item = await build_validation_queue_item(session, req, threshold, projector)
+        if item is not None:
+            items.append(item)
+
+    return projector.build_response(items)
+
+
+@router.get("/validation/{request_id}", response_model=ValidationQueueItem)
+async def get_validation_item(
+    request_id: uuid.UUID,
+    session: AsyncSession = Depends(get_session),
+):
+    req_repo = RequestRepository(session)
+    request = await req_repo.get(request_id)
+    if request is None:
+        raise HTTPException(status_code=404, detail="Request not found")
+
+    threshold = await AdminSettingRepository(session).get_pass_threshold()
+    projector = ValidationQueueProjector()
+    item = await build_validation_queue_item(
+        session, request, threshold, projector, enforce_threshold=False
+    )
+    if item is None:
+        raise HTTPException(status_code=404, detail="Validation details not found")
+    return item
+
+
+async def _apply_human_review_status(
+    request_id: uuid.UUID,
+    status: str,
+    body: HumanReviewRequest,
+    session: AsyncSession,
+) -> HumanReviewResponse:
+    """Load request, apply human review status, commit, and return response."""
+    repo = RequestRepository(session)
+    request = await repo.get(request_id)
+    if request is None:
+        raise HTTPException(status_code=404, detail="Request not found")
+    await repo.update(
+        request_id,
+        human_review_status=status,
+        human_review_notes=body.notes,
+        human_reviewed_at=datetime.now(timezone.utc),
+    )
+    await session.commit()
+    return HumanReviewResponse(
+        request_id=request_id,
+        status=status,
+        notes=body.notes,
+    )
+
+
+@router.post("/validation/{request_id}/accept", response_model=HumanReviewResponse)
+async def accept_validation(
+    request_id: uuid.UUID,
+    body: HumanReviewRequest,
+    session: AsyncSession = Depends(get_session),
+):
+    return await _apply_human_review_status(request_id, "accepted", body, session)
+
+
+@router.post("/validation/{request_id}/reject", response_model=HumanReviewResponse)
+async def reject_validation(
+    request_id: uuid.UUID,
+    body: HumanReviewRequest,
+    session: AsyncSession = Depends(get_session),
+):
+    return await _apply_human_review_status(request_id, "rejected", body, session)
+
+
+@router.post("/validation/{request_id}/flag", response_model=HumanReviewResponse)
+async def flag_validation(
+    request_id: uuid.UUID,
+    body: HumanReviewRequest,
+    session: AsyncSession = Depends(get_session),
+):
+    return await _apply_human_review_status(request_id, "flagged", body, session)
+
+
+# ── Archive ──────────────────────────────────────────────────────────────────
+
+
+@router.post("/archive")
+async def archive_old_images(
+    older_than_days: int = Query(default=2, ge=0, description="Archive requests older than N days"),
+    dry_run: bool = Query(
+        default=False, description="Preview what would be archived without making changes"
+    ),
+    session: AsyncSession = Depends(get_session),
+):
+    from chronocanvas.services.archiver import archive_old_requests
+
+    result = await archive_old_requests(session, older_than_days=older_than_days, dry_run=dry_run)
+    return result

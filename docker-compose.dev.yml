@@ -1,0 +1,133 @@
+services:
+  db:
+    image: pgvector/pgvector:0.7.0-pg16
+    environment:
+      POSTGRES_USER: chronocanvas
+      POSTGRES_PASSWORD: chronocanvas
+      POSTGRES_DB: chronocanvas
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U chronocanvas"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    security_opt:
+      - no-new-privileges:true
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    security_opt:
+      - no-new-privileges:true
+
+  facefusion:
+    profiles: ["facefusion"]
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.facefusion
+    ports:
+      - "7861:7861"
+    volumes:
+      # FaceFusion source code — set FACEFUSION_SOURCE_PATH in .env
+      - ${FACEFUSION_SOURCE_PATH:-.}:/facefusion
+      # Persist downloaded ONNX models between restarts
+      - ff_models:/facefusion/.assets
+      # Shared image directories with the api service
+      - ./output:/app/output
+      - ./uploads:/app/uploads
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:7861/api/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+    security_opt:
+      - no-new-privileges:true
+
+  api:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.api
+    env_file: .env
+    environment:
+      DATABASE_URL: postgresql+asyncpg://chronocanvas:chronocanvas@db:5432/chronocanvas
+      REDIS_URL: redis://redis:6379/0
+      LOG_LEVEL: DEBUG
+      PYTHONPATH: /app/src:/app/neo-mumbai-noir
+      RUN_MIGRATIONS: "true"
+    ports:
+      - "8000:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - ./backend/src:/app/src
+      - ./output:/app/output
+      - ./archive:/app/archive
+      - ./uploads:/app/uploads
+      - ./eval:/app/eval:ro
+      - ../neo-mumbai-noir:/app/neo-mumbai-noir
+    command: ["uvicorn", "chronocanvas.main:app", "--reload", "--host", "0.0.0.0", "--port", "8000"]
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    tmpfs:
+      - /tmp
+
+  worker:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.api
+    env_file: .env
+    environment:
+      DATABASE_URL: postgresql+asyncpg://chronocanvas:chronocanvas@db:5432/chronocanvas
+      REDIS_URL: redis://redis:6379/0
+      PYTHONPATH: /app/src:/app/neo-mumbai-noir
+      RUN_MIGRATIONS: "false"
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - ./backend/src:/app/src
+      - ./output:/app/output
+      - ./archive:/app/archive
+      - ./uploads:/app/uploads
+      - ../neo-mumbai-noir:/app/neo-mumbai-noir
+    command: ["arq", "chronocanvas.worker.WorkerSettings"]
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+
+  frontend:
+    image: node:20-alpine
+    working_dir: /app
+    command: sh -c "npm install && npm run dev -- --host 0.0.0.0"
+    ports:
+      - "3000:3000"
+    depends_on:
+      - api
+    volumes:
+      - ./frontend:/app
+      - frontend_node_modules:/app/node_modules
+    environment:
+      VITE_API_URL: http://api:8000
+
+volumes:
+  pgdata:
+  frontend_node_modules:
+  ff_models:

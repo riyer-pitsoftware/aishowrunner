@@ -1,0 +1,73 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "chronocanvas"
+version = "0.1.0"
+description = "Agentic historical education toolkit"
+requires-python = ">=3.11"
+dependencies = [
+    "fastapi>=0.115.0",
+    "uvicorn[standard]>=0.32.0",
+    "sqlalchemy[asyncio]>=2.0.0",
+    "asyncpg>=0.30.0",
+    "alembic>=1.14.0",
+    "pydantic>=2.10.0",
+    "pydantic-settings>=2.7.0",
+    "langgraph>=0.2.0",
+    "langgraph-checkpoint-postgres>=2.0.0",
+    "langchain-core>=0.3.0",
+    "httpx>=0.28.0",
+    "anthropic>=0.40.0",
+    "openai>=1.60.0",
+    "google-genai>=1.0.0,<1.67",  # 1.67 drops thought_signature on text parts in chat history
+    "google-cloud-storage>=2.14.0",
+    "pillow>=11.0.0",
+    "redis>=5.2.0",
+    "python-multipart>=0.0.18",
+    "python-jose[cryptography]>=3.3.0",
+    "aiofiles>=24.1.0",
+    "websockets>=10.4",
+    "arq>=0.25.0",
+    "psycopg[binary]>=3.1.0",
+    "pgvector>=0.3.0",
+    "sentence-transformers>=3.0.0",
+    "pyyaml>=6.0.0",
+    "json5>=0.10.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0.0",
+    "pytest-asyncio>=0.24.0",
+    "pytest-cov>=6.0.0",
+    "httpx>=0.28.0",
+    "ruff>=0.8.0",
+    "aiosqlite>=0.20.0",
+    "opencv-python-headless>=4.9.0",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/chronocanvas"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests", "../tests"]
+
+[tool.ruff]
+target-version = "py311"
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "N", "W"]
+
+[tool.ruff.lint.per-file-ignores]
+# Prompt template files contain long lines inside triple-quoted strings
+"src/chronocanvas/agents/story/nodes/scene_decomposition.py" = ["E501"]
+"src/chronocanvas/agents/story/nodes/scene_prompt_generation.py" = ["E501"]
+"src/chronocanvas/agents/story/nodes/storyboard_coherence.py" = ["E501"]
+# Live routes: camera directives, keyword lists, chained attribute access
+"src/chronocanvas/api/routes/live_video.py" = ["E501"]
+"src/chronocanvas/api/routes/live_voice.py" = ["E501"]
+"src/chronocanvas/api/routes/live_session.py" = ["E501"]

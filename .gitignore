@@ -1,16 +1,134 @@
-# Byte-compiled / optimized / DLL files
+# === agentic-harness baseline gitignore additions ===
+# Appended to project .gitignore by harness-init.
+# Project-specific additions go AFTER this block.
+#
+# Note on .planning/ and .beads/:
+#   This baseline un-ignores both for the harness repo's own use (the harness
+#   IS what it's building, so its scaffolding is a tracked build artifact).
+#   In adopter repos, harness-init appends an "adopter overlay" AFTER this
+#   block that re-ignores both directories — they hold operator-local state
+#   (sprint plans, token ledger, AI-critic outputs) and must not be shared
+#   between collaborators of the adopter project. See docs/ADOPTION.md.
+
+# === Hidden directories ===
+# Ignore any hidden directory by default; explicitly allow the ones tracked.
+.*/
+!.beads/
+!.planning/
+!.github/
+
+# === macOS ===
+.DS_Store
+
+# === Common IDE / editor state ===
+.vscode/
+.idea/
+.fleet/
+.zed/
+.cursor/
+.vs/
+
+# === Token-accounting ephemeral state ===
+# token-ledger.jsonl is committed (auditable per-bead history).
+# active-bead is the orchestrator's current claim; ephemeral, machine-local.
+.beads/active-bead
+
+# === External AI critic outputs ===
+# Process reviews from external AI critics (Codex/GPT-5/etc.) stay local.
+# Canonical findings flow into beads + briefs, not into the repo.
+.planning/audit-reviews/
+
+# === Project-generated calibration data (uncomment per project) ===
+# Synthetic / LLM-generated calibration data is regenerable, not canonical.
+# .planning/<scope>/test-corpus/synthetic/
+# .planning/<scope>/test-corpus/gold/raw/   # raw interview audio/transcripts per CONSENT
+
+# === agentic-harness adopter overlay ===
+# Harness scaffolding (.planning/, .beads/) is operator-local state.
+# Ignored in adopter repos; tracked only in the harness repo itself.
+.planning/
+.beads/
+# Codex per-operator state (rules, sessions, local plugin cache).
+.codex/
 __pycache__/
-*.py[codz]
+*.py[cod]
 *$py.class
-
-# C extensions
-*.so
-
-# Distribution / packaging
-.Python
-build/
-develop-eggs/
+*.egg-info/
 dist/
+build/
+*.egg
+.venv/
+venv/
+env/
+node_modules/
+frontend/dist/
+frontend/.vite/
+.env
+.env.local
+.env.*.local
+*.swp
+*.swo
+*~
+Thumbs.db
+docker/data/
+*.db
+*.sqlite3
+backend/alembic/versions/__pycache__/
+output/
+uploads/
+.coverage
+htmlcov/
+.pytest_cache/
+dump.rdb
+*.log
+.claude/
+zap-reports/
+docs/videos/
+demo/fallback/*.png
+demo/fallback/*.wav
+demo/fallback/*.mp4
+blog/
+notes/
+**/.DS_Store
+.!*!.DS_Store
+.aider*
+ai_docs/changes-log.md
+eval/runs/*
+!eval/runs/.gitkeep
+eval/ratings/ratings_*.csv
+!eval/ratings/ratings_template.csv
+eval/reports/*.csv
+eval/reports/*.md
+AGENTS.md
+archive/
+vendor/*.whl
+deploy/cloudrun/README.md
+deploy/cloudrun/.deploy-state
+deploy/cloudrun/.build-manifest.json
+.agent/**
+.codebuddy/**
+.codex/**
+.continue/**
+.cursor/**
+.gemini/**
+.github/**
+.kiro/**
+.opencode/**
+.qoder/**
+.roo/**
+.trae/**
+.windsurf/**
+.env.hackathon
+.deploy-status.json
+.env.remote
+.logs/
+pbcopy
+.dolt/
+.beads-credential-key
+*.py[codz]
+*.so
+.Python
+develop-eggs/
 downloads/
 eggs/
 .eggs/
@@ -21,26 +139,14 @@ sdist/
 var/
 wheels/
 share/python-wheels/
-*.egg-info/
 .installed.cfg
-*.egg
 MANIFEST
-
-# PyInstaller
-#   Usually these files are written by a python script from a template
-#   before PyInstaller builds the exe, so as to inject date/other infos into it.
 *.manifest
 *.spec
-
-# Installer logs
 pip-log.txt
 pip-delete-this-directory.txt
-
-# Unit test / coverage reports
-htmlcov/
 .tox/
 .nox/
-.coverage
 .coverage.*
 .cache
 nosetests.xml
@@ -48,171 +154,56 @@ coverage.xml
 *.cover
 *.py.cover
 .hypothesis/
-.pytest_cache/
 cover/
-
-# Translations
 *.mo
 *.pot
-
-# Django stuff:
-*.log
 local_settings.py
 db.sqlite3
 db.sqlite3-journal
-
-# Flask stuff:
 instance/
 .webassets-cache
-
-# Scrapy stuff:
 .scrapy
-
-# Sphinx documentation
 docs/_build/
-
-# PyBuilder
 .pybuilder/
 target/
-
-# Jupyter Notebook
 .ipynb_checkpoints
-
-# IPython
 profile_default/
 ipython_config.py
-
-# pyenv
-#   For a library or package, you might want to ignore these files since the code is
-#   intended to run in multiple environments; otherwise, check them in:
-# .python-version
-
-# pipenv
-#   According to pypa/pipenv#598, it is recommended to include Pipfile.lock in version control.
-#   However, in case of collaboration, if having platform-specific dependencies or dependencies
-#   having no cross-platform support, pipenv may install dependencies that don't work, or not
-#   install all needed dependencies.
-# Pipfile.lock
-
-# UV
-#   Similar to Pipfile.lock, it is generally recommended to include uv.lock in version control.
-#   This is especially recommended for binary packages to ensure reproducibility, and is more
-#   commonly ignored for libraries.
-# uv.lock
-
-# poetry
-#   Similar to Pipfile.lock, it is generally recommended to include poetry.lock in version control.
-#   This is especially recommended for binary packages to ensure reproducibility, and is more
-#   commonly ignored for libraries.
-#   https://python-poetry.org/docs/basic-usage/#commit-your-poetrylock-file-to-version-control
-# poetry.lock
-# poetry.toml
-
-# pdm
-#   Similar to Pipfile.lock, it is generally recommended to include pdm.lock in version control.
-#   pdm recommends including project-wide configuration in pdm.toml, but excluding .pdm-python.
-#   https://pdm-project.org/en/latest/usage/project/#working-with-version-control
-# pdm.lock
-# pdm.toml
 .pdm-python
 .pdm-build/
-
-# pixi
-#   Similar to Pipfile.lock, it is generally recommended to include pixi.lock in version control.
-# pixi.lock
-#   Pixi creates a virtual environment in the .pixi directory, just like venv module creates one
-#   in the .venv directory. It is recommended not to include this directory in version control.
 .pixi
-
-# PEP 582; used by e.g. github.com/David-OConnor/pyflow and github.com/pdm-project/pdm
 __pypackages__/
-
-# Celery stuff
 celerybeat-schedule
 celerybeat.pid
-
-# Redis
 *.rdb
 *.aof
 *.pid
-
-# RabbitMQ
 mnesia/
 rabbitmq/
 rabbitmq-data/
-
-# ActiveMQ
 activemq-data/
-
-# SageMath parsed files
 *.sage.py
-
-# Environments
-.env
 .envrc
 .venv
-env/
-venv/
 ENV/
 env.bak/
 venv.bak/
-
-# Spyder project settings
 .spyderproject
 .spyproject
-
-# Rope project settings
 .ropeproject
-
-# mkdocs documentation
 /site
-
-# mypy
 .mypy_cache/
 .dmypy.json
 dmypy.json
-
-# Pyre type checker
 .pyre/
-
-# pytype static type analyzer
 .pytype/
-
-# Cython debug symbols
 cython_debug/
-
-# PyCharm
-#   JetBrains specific template is maintained in a separate JetBrains.gitignore that can
-#   be found at https://github.com/github/gitignore/blob/main/Global/JetBrains.gitignore
-#   and can be added to the global gitignore or merged into this file.  For a more nuclear
-#   option (not recommended) you can uncomment the following to ignore the entire idea folder.
-# .idea/
-
-# Abstra
-#   Abstra is an AI-powered process automation framework.
-#   Ignore directories containing user credentials, local state, and settings.
-#   Learn more at https://abstra.io/docs
 .abstra/
-
-# Visual Studio Code
-#   Visual Studio Code specific template is maintained in a separate VisualStudioCode.gitignore 
-#   that can be found at https://github.com/github/gitignore/blob/main/Global/VisualStudioCode.gitignore
-#   and can be added to the global gitignore or merged into this file. However, if you prefer, 
-#   you could uncomment the following to ignore the entire vscode folder
-# .vscode/
-# Temporary file for partial code execution
 tempCodeRunnerFile.py
-
-# Ruff stuff:
 .ruff_cache/
-
-# PyPI configuration file
 .pypirc
-
-# Marimo
 marimo/_static/
 marimo/_lsp/
 __marimo__/
-
-# Streamlit
 .streamlit/secrets.toml
+.codegraph/

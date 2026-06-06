@@ -1,0 +1,89 @@
+from typing import Any, TypedDict
+
+from chronocanvas.runtime_config import RuntimeConfig
+
+
+class StoryPanel(TypedDict, total=False):
+    scene_index: int
+    description: str
+    characters: list[str]
+    mood: str
+    setting: str
+    image_prompt: str
+    negative_prompt: str
+    image_path: str
+    provider: str
+    width: int
+    height: int
+    status: str  # "pending" | "generating" | "completed" | "failed"
+    error: str
+    # Continuity tracking (populated by scene_decomposition)
+    # what this scene expects from previous (characters, wardrobe, etc.)
+    expected_state: dict
+    established_state: dict  # what this scene establishes for the next
+    # Coherence (populated by storyboard_coherence node)
+    coherence_score: float | None
+    coherence_issues: list[str]
+    coherence_suggestion: str
+    # Narration (populated by narration_script / narration_audio nodes)
+    narration_text: str
+    narration_audio_path: str
+
+
+class StoryState(TypedDict, total=False):
+    # Input
+    request_id: str
+    input_text: str
+
+    # Optional image input (image-to-story, reference images)
+    reference_image_path: str  # uploaded image for image-to-story
+    reference_image_mime: str
+    story_concept: dict[str, Any]  # Gemini-extracted concept from image
+    reference_images: list[dict[str, Any]]  # style/location/character refs
+    reference_analysis: list[dict[str, Any]]  # Gemini analysis of refs
+
+    # Extraction
+    characters: list[dict[str, Any]]
+
+    # Scene decomposition
+    scenes: list[dict[str, Any]]
+
+    # Image generation
+    panels: list[StoryPanel]
+    total_scenes: int
+    completed_scenes: int
+
+    # Audit
+    agent_trace: list[dict[str, Any]]
+    llm_calls: list[dict[str, Any]]
+
+    # Coherence regen
+    regen_scenes: list[int]  # scene indices to regenerate
+    coherence_retry_count: int  # caps regen cycles (max 1)
+
+    # Narration audio
+    narration_audio_paths: list[str]
+
+    # Google Search grounding sources (populated by historical_research node)
+    grounding_sources: list[dict[str, Any]]
+    historical_context: str
+
+    # Per-request configuration overrides (from UI ConfigHUD).
+    # Stored as a plain dict for checkpoint serialization safety.
+    runtime_config: dict[str, Any] | None
+
+    # Control
+    current_agent: str
+    error: str | None
+
+
+def get_runtime_config(state: StoryState) -> RuntimeConfig | None:
+    """Reconstruct RuntimeConfig from state, handling both dict and object forms."""
+    rc = state.get("runtime_config")
+    if rc is None:
+        return None
+    if isinstance(rc, RuntimeConfig):
+        return rc
+    if isinstance(rc, dict):
+        return RuntimeConfig.from_dict(rc)
+    return None

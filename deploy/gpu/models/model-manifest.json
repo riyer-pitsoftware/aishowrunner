@@ -1,0 +1,113 @@
+{
+  "version": "1.0",
+  "description": "ChronoCanvas model manifest — declarative list for GCS sync to ComfyUI",
+  "comfyui_base": "/opt/ComfyUI/models",
+  "models": {
+    "l4": [
+      {
+        "name": "FLUX.2 Dev FP8",
+        "filename": "flux1-dev-fp8.safetensors",
+        "source": "https://huggingface.co/Comfy-Org/flux1-dev/resolve/main/flux1-dev-fp8.safetensors",
+        "dest": "diffusion_models/flux1-dev-fp8.safetensors",
+        "size_gb": 11.9,
+        "required": true
+      },
+      {
+        "name": "FLUX RealismLoRA",
+        "filename": "flux-RealismLora.safetensors",
+        "source": "https://huggingface.co/comfyanonymous/flux_RealismLora_converted_comfyui/resolve/main/flux_realism_lora.safetensors",
+        "dest": "loras/flux-RealismLora.safetensors",
+        "size_gb": 0.3,
+        "required": true
+      },
+      {
+        "name": "InfiniteYou FP8",
+        "filename": "infusenet_sim_fp8e4m3fn.safetensors",
+        "source": "https://huggingface.co/ByteDance/InfiniteYou/resolve/main/infu_flux_v1.0/sim_stage1/infusenet_sim_fp8e4m3fn.safetensors",
+        "dest": "instantid/infiniteyou-flux-fp8.safetensors",
+        "size_gb": 3.0,
+        "required": true
+      },
+      {
+        "name": "InsightFace AntelopeV2",
+        "filename": "antelopev2.zip",
+        "source": "https://huggingface.co/MonsterMMORPG/tools/resolve/main/antelopev2.zip",
+        "dest": "insightface/models/antelopev2.zip",
+        "size_gb": 0.4,
+        "required": true,
+        "post_install": "unzip to insightface/models/antelopev2/"
+      },
+      {
+        "name": "ControlNet Union Pro",
+        "filename": "diffusion_pytorch_model_promax.safetensors",
+        "source": "https://huggingface.co/xinsir/controlnet-union-sdxl-1.0/resolve/main/diffusion_pytorch_model_promax.safetensors",
+        "dest": "controlnet/controlnet-union-pro.safetensors",
+        "size_gb": 6.5,
+        "required": true
+      },
+      {
+        "name": "FLUX VAE",
+        "filename": "ae.safetensors",
+        "source": "https://huggingface.co/black-forest-labs/FLUX.1-dev/resolve/main/ae.safetensors",
+        "dest": "vae/flux-ae.safetensors",
+        "size_gb": 0.3,
+        "required": true
+      },
+      {
+        "name": "T5 XXL FP8",
+        "filename": "t5xxl_fp8_e4m3fn.safetensors",
+        "source": "https://huggingface.co/comfyanonymous/flux_text_encoders/resolve/main/t5xxl_fp8_e4m3fn.safetensors",
+        "dest": "text_encoders/t5xxl_fp8_e4m3fn.safetensors",
+        "size_gb": 4.9,
+        "required": true
+      },
+      {
+        "name": "CLIP-L",
+        "filename": "clip_l.safetensors",
+        "source": "https://huggingface.co/comfyanonymous/flux_text_encoders/resolve/main/clip_l.safetensors",
+        "dest": "text_encoders/clip_l.safetensors",
+        "size_gb": 0.2,
+        "required": true
+      }
+    ],
+    "a100": [
+      {
+        "name": "Wan 2.2 I2V 14B High Noise FP8",
+        "filename": "wan2.2_i2v_720p_14B_hn_fp8_e4m3fn.safetensors",
+        "source": "https://huggingface.co/Comfy-Org/Wan_2.1_ComfyUI_repackaged/resolve/main/split_files/diffusion_models/wan2.1_i2v_720p_14B_fp8_e4m3fn.safetensors",
+        "dest": "diffusion_models/wan2.2_i2v_720p_14B_hn_fp8_e4m3fn.safetensors",
+        "size_gb": 9.5,
+        "required": true
+      },
+      {
+        "name": "Wan 2.2 I2V 14B Low Noise FP8",
+        "filename": "wan2.2_i2v_720p_14B_ln_fp8_e4m3fn.safetensors",
+        "source": "https://huggingface.co/Comfy-Org/Wan_2.1_ComfyUI_repackaged/resolve/main/split_files/diffusion_models/wan2.1_i2v_720p_14B_fp8_e4m3fn.safetensors",
+        "dest": "diffusion_models/wan2.2_i2v_720p_14B_ln_fp8_e4m3fn.safetensors",
+        "size_gb": 9.5,
+        "required": true
+      },
+      {
+        "name": "Wan 2.2 VAE",
+        "filename": "wan_2.1_vae.safetensors",
+        "source": "https://huggingface.co/Comfy-Org/Wan_2.1_ComfyUI_repackaged/resolve/main/split_files/vae/wan_2.1_vae.safetensors",
+        "dest": "vae/wan_2.1_vae.safetensors",
+        "size_gb": 0.3,
+        "required": true
+      },
+      {
+        "name": "UMT5 XXL FP8",
+        "filename": "umt5_xxl_fp8_e4m3fn.safetensors",
+        "source": "https://huggingface.co/Comfy-Org/Wan_2.1_ComfyUI_repackaged/resolve/main/split_files/text_encoders/umt5_xxl_fp8_e4m3fn.safetensors",
+        "dest": "text_encoders/umt5_xxl_fp8_e4m3fn.safetensors",
+        "size_gb": 4.9,
+        "required": true
+      }
+    ]
+  },
+  "total_size_gb": {
+    "l4": 27.5,
+    "a100": 24.2,
+    "combined": 51.7
+  }
+}

@@ -1,0 +1,122 @@
+import { useEffect, useRef, useState } from 'react';
+
+export interface ImageProgress {
+  step: number;
+  total: number;
+}
+
+export interface SceneImageEvent {
+  scene_index: number;
+  total_scenes: number;
+  image_path: string;
+}
+
+export interface ArtifactEvent {
+  artifact_type: 'image' | 'audio' | 'video' | 'scene_edit';
+  scene_index: number | null;
+  total: number;
+  completed: number;
+  url: string;
+  mime_type: string;
+}
+
+/**
+ * Connect to the generation WebSocket and surface real-time progress.
+ *
+ * - Returns `imageProgress` with step/total during the image_generation phase.
+ * - Returns `streamingText` + `streamingAgent` for live LLM token output.
+ * - Returns `artifacts` for uniform artifact_ready events (images + audio).
+ * - Automatically disconnects when the generation completes or fails.
+ */
+export function useGenerationWS(requestId: string | null, enabled: boolean) {
+  const [imageProgress, setImageProgress] = useState<ImageProgress | null>(null);
+  const [streamingText, setStreamingText] = useState<string>('');
+  const [streamingAgent, setStreamingAgent] = useState<string | null>(null);
+  const [sceneImages, setSceneImages] = useState<SceneImageEvent[]>([]);
+  const [artifacts, setArtifacts] = useState<ArtifactEvent[]>([]);
+  const wsRef = useRef<WebSocket | null>(null);
+
+  useEffect(() => {
+    if (!requestId || !enabled) return;
+
+    setStreamingText('');
+    setStreamingAgent(null);
+    setSceneImages([]);
+    setArtifacts([]);
+
+    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    const ws = new WebSocket(`${protocol}//${window.location.host}/ws/generation/${requestId}`);
+    wsRef.current = ws;
+
+    ws.onmessage = (event) => {
+      let data: Record<string, unknown>;
+      try {
+        data = JSON.parse(event.data as string);
+      } catch {
+        return;
+      }
+
+      if (data.type === 'llm_token') {
+        const agent = data.agent as string;
+        const token = data.token as string;
+        setStreamingAgent(agent);
+        setStreamingText((prev) => prev + token);
+      } else if (data.type === 'llm_stream_end') {
+        // Keep text visible until the next agent starts
+        setStreamingAgent(null);
+      } else if (data.type === 'scene_image_complete') {
+        setSceneImages((prev) => [
+          ...prev,
+          {
+            scene_index: data.scene_index as number,
+            total_scenes: data.total_scenes as number,
+            image_path: data.image_path as string,
+          },
+        ]);
+      } else if (data.type === 'artifact_ready') {
+        setArtifacts((prev) => [
+          ...prev,
+          {
+            artifact_type: data.artifact_type as 'image' | 'audio' | 'video' | 'scene_edit',
+            scene_index: data.scene_index as number | null,
+            total: data.total as number,
+            completed: data.completed as number,
+            url: data.url as string,
+            mime_type: data.mime_type as string,
+          },
+        ]);
+      } else if (data.type === 'image_progress') {
+        setImageProgress({
+          step: data.step as number,
+          total: data.total as number,
+        });
+      } else {
+        if (data.agent && data.agent !== 'image_generation') {
+          setImageProgress(null);
+        }
+        // New agent starting — clear previous streaming text
+        if (data.agent) {
+          setStreamingText('');
+          setStreamingAgent(null);
+        }
+        if (data.status === 'completed' || data.status === 'failed') {
+          setImageProgress(null);
+          setStreamingText('');
+          setStreamingAgent(null);
+          ws.close();
+        }
+      }
+    };
+
+    ws.onerror = () => {
+      // WS unavailable (e.g. Redis not running) — silently ignore
+    };
+
+    return () => {
+      ws.close();
+      wsRef.current = null;
+    };
+  }, [requestId, enabled]);
+
+  return { imageProgress, streamingText, streamingAgent, sceneImages, artifacts };
+}

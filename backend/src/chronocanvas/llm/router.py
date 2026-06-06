@@ -1,0 +1,343 @@
+import logging
+import time
+
+from chronocanvas.config import settings
+from chronocanvas.llm.base import LLMProvider, LLMResponse, TaskType
+from chronocanvas.llm.cost_tracker import CostTracker
+from chronocanvas.llm.providers.claude import ClaudeProvider
+from chronocanvas.llm.providers.gemini import GeminiProvider
+from chronocanvas.llm.providers.ollama import OllamaProvider
+from chronocanvas.llm.providers.openai import OpenAIProvider
+from chronocanvas.llm.rate_limiter import RateLimiter
+from chronocanvas.redis_client import publish_progress
+from chronocanvas.runtime_config import RuntimeConfig
+
+logger = logging.getLogger(__name__)
+
+
+class GeminiUnavailableError(RuntimeError):
+    """Raised in strict Gemini mode when Gemini is unavailable and fallback is disabled."""
+
+    pass
+
+
+# Default provider per deployment mode (used when ConfigHUD sends no llm_provider).
+_MODE_DEFAULT_PROVIDER: dict[str, str] = {
+    "gcp": "gemini",
+    "local": "ollama",
+    "hybrid": "gemini",
+}
+
+
+class LLMRouter:
+    def __init__(self):
+        self.providers: dict[str, LLMProvider] = {
+            "ollama": OllamaProvider(),
+            "claude": ClaudeProvider(),
+            "openai": OpenAIProvider(),
+            "gemini": GeminiProvider(),
+        }
+        self.rate_limiter = RateLimiter(
+            max_rpm=settings.rate_limit_rpm,
+            max_concurrent=settings.llm_max_concurrent,
+        )
+        self.cost_tracker = CostTracker()
+
+    def get_provider(
+        self,
+        task_type: TaskType = TaskType.GENERAL,
+        agent_name: str | None = None,
+        runtime_config: RuntimeConfig | None = None,
+    ) -> LLMProvider:
+        # Per-agent override from RuntimeConfig takes highest precedence
+        if runtime_config and agent_name and agent_name in runtime_config.agent_routing:
+            override = runtime_config.agent_routing[agent_name]
+            if override in self.providers:
+                return self.providers[override]
+
+        # Per-agent override from env var (LLM_AGENT_ROUTING)
+        if agent_name and agent_name in settings.llm_agent_routing:
+            override = settings.llm_agent_routing[agent_name]
+            if override in self.providers:
+                return self.providers[override]
+
+        # RuntimeConfig provider override (from ConfigHUD — authoritative source)
+        if runtime_config and runtime_config.llm_provider:
+            if runtime_config.llm_provider in self.providers:
+                logger.debug(
+                    "LLM provider from ConfigHUD: %s (agent=%s)",
+                    runtime_config.llm_provider,
+                    agent_name,
+                )
+                return self.providers[runtime_config.llm_provider]
+
+        # No ConfigHUD provider — derive default from deployment mode
+        preferred = _MODE_DEFAULT_PROVIDER.get(settings.deployment_mode, "gemini")
+        logger.debug(
+            "LLM provider from deployment_mode=%s: %s (agent=%s)",
+            settings.deployment_mode,
+            preferred,
+            agent_name,
+        )
+        return self.providers[preferred]
+
+    async def generate(
+        self,
+        prompt: str,
+        task_type: TaskType = TaskType.GENERAL,
+        system_prompt: str | None = None,
+        temperature: float = 0.7,
+        max_tokens: int = 2000,
+        json_mode: bool = False,
+        provider_override: str | None = None,
+        agent_name: str | None = None,
+        runtime_config: RuntimeConfig | None = None,
+    ) -> LLMResponse:
+        if provider_override and provider_override in self.providers:
+            provider = self.providers[provider_override]
+        else:
+            provider = self.get_provider(
+                task_type,
+                agent_name=agent_name,
+                runtime_config=runtime_config,
+            )
+
+        # Fallback chain: preferred -> ollama -> any available
+        requested_provider = provider.name
+        fell_back = False
+        rc_strict = (
+            runtime_config.strict_gemini
+            if runtime_config and runtime_config.strict_gemini is not None
+            else None
+        )
+        strict = rc_strict if rc_strict is not None else settings.hackathon_strict_gemini
+        if not await provider.is_available():
+            if strict and requested_provider == "gemini":
+                raise GeminiUnavailableError(
+                    "Gemini is currently unavailable. In hackathon strict mode, "
+                    "fallback to other providers is disabled. Please check your "
+                    "GOOGLE_API_KEY and Gemini API quota."
+                )
+            for name, p in self.providers.items():
+                if name != provider.name and await p.is_available():
+                    logger.warning(f"Falling back from {provider.name} to {name}")
+                    provider = p
+                    fell_back = True
+                    break
+
+        start = time.perf_counter()
+        async with self.rate_limiter:
+            response = await provider.generate(
+                prompt=prompt,
+                system_prompt=system_prompt,
+                temperature=temperature,
+                max_tokens=max_tokens,
+                json_mode=json_mode,
+            )
+        elapsed_ms = (time.perf_counter() - start) * 1000
+
+        response.system_prompt = system_prompt
+        response.user_prompt = prompt
+        response.duration_ms = elapsed_ms
+        response.requested_provider = requested_provider
+        response.fallback = fell_back
+
+        self.cost_tracker.record(
+            provider=response.provider,
+            model=response.model,
+            input_tokens=response.input_tokens,
+            output_tokens=response.output_tokens,
+            cost=response.cost,
+            task_type=task_type,
+        )
+
+        return response
+
+    async def generate_stream(
+        self,
+        prompt: str,
+        task_type: TaskType = TaskType.GENERAL,
+        request_id: str = "",
+        agent_name: str = "",
+        system_prompt: str | None = None,
+        temperature: float = 0.7,
+        max_tokens: int = 2000,
+        json_mode: bool = False,
+        provider_override: str | None = None,
+        runtime_config: RuntimeConfig | None = None,
+    ) -> LLMResponse:
+        if provider_override and provider_override in self.providers:
+            provider = self.providers[provider_override]
+        else:
+            provider = self.get_provider(
+                task_type,
+                agent_name=agent_name,
+                runtime_config=runtime_config,
+            )
+
+        requested_provider = provider.name
+        fell_back = False
+        rc_strict = (
+            runtime_config.strict_gemini
+            if runtime_config and runtime_config.strict_gemini is not None
+            else None
+        )
+        strict = rc_strict if rc_strict is not None else settings.hackathon_strict_gemini
+        if not await provider.is_available():
+            if strict and requested_provider == "gemini":
+                raise GeminiUnavailableError(
+                    "Gemini is currently unavailable. In hackathon strict mode, "
+                    "fallback to other providers is disabled. Please check your "
+                    "GOOGLE_API_KEY and Gemini API quota."
+                )
+            for name, p in self.providers.items():
+                if name != provider.name and await p.is_available():
+                    logger.warning(f"Falling back from {provider.name} to {name}")
+                    provider = p
+                    fell_back = True
+                    break
+
+        channel = f"generation:{request_id}" if request_id else None
+
+        async def on_token(token: str) -> None:
+            if channel:
+                await publish_progress(
+                    channel,
+                    {
+                        "type": "llm_token",
+                        "agent": agent_name,
+                        "token": token,
+                    },
+                )
+
+        start = time.perf_counter()
+        async with self.rate_limiter:
+            response = await provider.generate_stream(
+                prompt=prompt,
+                system_prompt=system_prompt,
+                temperature=temperature,
+                max_tokens=max_tokens,
+                json_mode=json_mode,
+                on_token=on_token,
+            )
+        elapsed_ms = (time.perf_counter() - start) * 1000
+
+        response.system_prompt = system_prompt
+        response.user_prompt = prompt
+        response.duration_ms = elapsed_ms
+        response.requested_provider = requested_provider
+        response.fallback = fell_back
+
+        if channel:
+            await publish_progress(
+                channel,
+                {
+                    "type": "llm_stream_end",
+                    "agent": agent_name,
+                },
+            )
+
+        self.cost_tracker.record(
+            provider=response.provider,
+            model=response.model,
+            input_tokens=response.input_tokens,
+            output_tokens=response.output_tokens,
+            cost=response.cost,
+            task_type=task_type,
+        )
+
+        return response
+
+    async def generate_with_search(
+        self,
+        prompt: str,
+        task_type: TaskType = TaskType.GENERAL,
+        request_id: str = "",
+        agent_name: str = "",
+        system_prompt: str | None = None,
+        temperature: float = 0.7,
+        max_tokens: int = 2000,
+        json_mode: bool = False,
+        runtime_config: RuntimeConfig | None = None,
+    ) -> LLMResponse:
+        """Generate with Google Search grounding (Gemini only).
+
+        Falls back to plain generate for other providers.
+        """
+        provider = self.get_provider(
+            task_type,
+            agent_name=agent_name,
+            runtime_config=runtime_config,
+        )
+
+        requested_provider = provider.name
+        fell_back = False
+        rc_strict = (
+            runtime_config.strict_gemini
+            if runtime_config and runtime_config.strict_gemini is not None
+            else None
+        )
+        strict = rc_strict if rc_strict is not None else settings.hackathon_strict_gemini
+        if not await provider.is_available():
+            if strict and requested_provider == "gemini":
+                raise GeminiUnavailableError(
+                    "Gemini is currently unavailable. In hackathon strict mode, "
+                    "fallback to other providers is disabled."
+                )
+            for name, p in self.providers.items():
+                if name != provider.name and await p.is_available():
+                    logger.warning(f"Falling back from {provider.name} to {name}")
+                    provider = p
+                    fell_back = True
+                    break
+
+        start = time.perf_counter()
+        async with self.rate_limiter:
+            response = await provider.generate_with_search(
+                prompt=prompt,
+                system_prompt=system_prompt,
+                temperature=temperature,
+                max_tokens=max_tokens,
+                json_mode=json_mode,
+            )
+        elapsed_ms = (time.perf_counter() - start) * 1000
+
+        response.system_prompt = system_prompt
+        response.user_prompt = prompt
+        response.duration_ms = elapsed_ms
+        response.requested_provider = requested_provider
+        response.fallback = fell_back
+
+        self.cost_tracker.record(
+            provider=response.provider,
+            model=response.model,
+            input_tokens=response.input_tokens,
+            output_tokens=response.output_tokens,
+            cost=response.cost,
+            task_type=task_type,
+        )
+
+        return response
+
+    async def check_availability(self) -> dict[str, bool]:
+        result = {}
+        for name, provider in self.providers.items():
+            result[name] = await provider.is_available()
+        return result
+
+
+def get_llm_router() -> LLMRouter:
+    """Return the process-wide LLMRouter from the service registry.
+
+    In production the registry is populated during startup.  If called
+    before startup (e.g. during import-time graph compilation) this falls
+    back to creating a fresh instance so the module stays importable.
+    """
+    from chronocanvas.service_registry import get_registry
+
+    router = get_registry().llm_router
+    if router is None:
+        # Fallback for early access before registry init (tests, CLI tools)
+        router = LLMRouter()
+        get_registry().llm_router = router
+    return router
