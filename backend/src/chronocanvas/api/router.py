@@ -19,6 +19,7 @@ from chronocanvas.api.routes import (
     live_voice,
     memory,
     reference_images,
+    skills,
     timeline,
     validation,
     voice,
@@ -29,6 +30,7 @@ api_router = APIRouter(prefix="/api")
 
 api_router.include_router(auth.router)
 api_router.include_router(health.router)
+api_router.include_router(skills.router)
 api_router.include_router(figures.router)
 api_router.include_router(timeline.router)
 if settings.enable_face_upload:

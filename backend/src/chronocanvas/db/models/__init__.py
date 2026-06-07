@@ -6,6 +6,7 @@ from chronocanvas.db.models.neo import NeoCharacter, NeoFaceSwap, NeoImage, NeoS
 from chronocanvas.db.models.period import Period
 from chronocanvas.db.models.request import GenerationRequest
 from chronocanvas.db.models.research_cache import ResearchCache
+from chronocanvas.db.models.skill_invocation import SkillInvocation
 from chronocanvas.db.models.validation import ValidationResult
 from chronocanvas.db.models.validation_rule import AdminSetting, ValidationRule
 
@@ -23,6 +24,7 @@ __all__ = [
     "NeoStory",
     "Period",
     "ResearchCache",
+    "SkillInvocation",
     "ValidationResult",
     "ValidationRule",
 ]

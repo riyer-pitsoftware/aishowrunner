@@ -138,6 +138,18 @@ class Settings(BaseSettings):
     # When set, users must log in before accessing any page.
     app_password: str = ""
 
+    # ── Showrunner: Skill Plane (agentic-harness Layer B) ──────────────────
+    # Empty values resolve to sensible defaults at runtime (see
+    # chronocanvas.showrunner.skills.get_skill_port).
+    skill_port: str = "harness"  # "harness" (in-process litellm) | "subprocess" (run_skill.py)
+    showrunner_skills_dir: str = ""  # default: backend/showrunner_skills
+    harness_repo: str = ""  # default: ~/code/agentic-harness
+    harness_models_path: str = ""  # default: <repo>/.harness/models.yaml
+    showrunner_planning_dir: str = ""  # default: <repo>/.planning/build (ROSTER/STATUS)
+    project_memory_dir: str = ""  # default: ~/.claude/projects/<key>/memory
+    skill_timeout_s: float = 120.0
+    skill_max_concurrent: int = 3
+
     # Admin API authentication (required when enable_admin_api=True on GCP)
     admin_api_key: str = ""
 
