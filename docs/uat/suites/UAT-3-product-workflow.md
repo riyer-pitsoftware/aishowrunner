@@ -16,19 +16,19 @@ Series/canon steps are executable now (Sprint 3); the rest need Sprints 4–6.
 - **Result:** ☐  **Evidence:** ______
 
 ### UAT-PROD-002 — Convene the Story Room
-- **Maps to:** Convene the Story Room · **Priority:** P0 · **Needs:** Sprint 4
+- **Maps to:** Convene the Story Room · **Priority:** P0 · **Sprint 4: endpoint live; run needs DB+Ollama**
 - **Steps:** `POST /api/series/{id}/story-room`; poll `/api/episodes/{id}/events`.
 - **Expected:** An episode is created in `story_room`; specialist contributions stream in; 2–3 branch proposals produced and sent to Branch Greenlight.
 - **Result:** ☐  **Evidence:** ______
 
 ### UAT-PROD-003 — Review and approve a branch
-- **Maps to:** Review and approve a branch · **Priority:** P0 · **Needs:** Sprint 4
+- **Maps to:** Review and approve a branch · **Priority:** P0 · **Sprint 4: endpoint live; run needs DB+Ollama**
 - **Steps:** Inspect proposals (hook, consequences, historical notes, complexity); `POST /api/episodes/{id}/greenlights/branch` selecting one.
 - **Expected:** Selected branch recorded; episode advances to `episode_plan`. "Reconsider" instead loops back to `story_room` without losing proposals.
 - **Result:** ☐  **Evidence:** ______
 
 ### UAT-PROD-004 — Approve the episode plan
-- **Maps to:** Approve an episode plan · **Priority:** P0 · **Needs:** Sprint 4 + 5
+- **Maps to:** Approve an episode plan · **Priority:** P0 · **Sprint 4: endpoint live; run needs DB+Ollama** + 5
 - **Steps:** Review beat sheet + closing choices (Story Room) and shot list + budget (Production Desk); review the Greenlight pack (creative/narrative/historical/feasibility/cost/judge); `POST /greenlights/episode`.
 - **Expected:** Plan approved with a visible **pre-flight cost estimate** (UAT-COST-003); episode → `producing`. Over hard cap is blocked (UAT-COST-005).
 - **Result:** ☐  **Evidence:** ______
@@ -46,13 +46,13 @@ Series/canon steps are executable now (Sprint 3); the rest need Sprints 4–6.
 - **Result:** ☐  **Evidence:** ______
 
 ### UAT-PROD-007 — Approve the final cut
-- **Maps to:** Approve the final cut · **Priority:** P0 · **Needs:** Sprint 4 + 6
+- **Maps to:** Approve the final cut · **Priority:** P0 · **Sprint 4: endpoint live; run needs DB+Ollama** + 6
 - **Steps:** Review assembled 9:16; `POST /api/episodes/{id}/finalize` then `POST /greenlights/final`.
 - **Expected:** Final cut approved; episode → `canon_commit`; assembled artifact recorded.
 - **Result:** ☐  **Evidence:** ______
 
 ### UAT-PROD-008 — Select the ending choice
-- **Maps to:** Select the ending choice · **Priority:** P0 · **Needs:** Sprint 4
+- **Maps to:** Select the ending choice · **Priority:** P0 · **Sprint 4: endpoint live; run needs DB+Ollama**
 - **Steps:** `GET /api/episodes/{id}/choices`; `POST /api/episodes/{id}/choices/{choice_id}/select`.
 - **Expected:** game-designer proposes state changes, narrative-engineer + historian review, selected consequences become **canon mutations** with provenance; the choice is then frozen (cannot be changed).
 - **Result:** ☐  **Evidence:** ______

@@ -20,6 +20,7 @@ from chronocanvas.api.routes import (
     live_voice,
     memory,
     reference_images,
+    rooms,
     series,
     skills,
     timeline,
@@ -35,6 +36,7 @@ api_router.include_router(health.router)
 api_router.include_router(skills.router)
 api_router.include_router(series.router)
 api_router.include_router(cost.router)
+api_router.include_router(rooms.router)
 api_router.include_router(figures.router)
 api_router.include_router(timeline.router)
 if settings.enable_face_upload:

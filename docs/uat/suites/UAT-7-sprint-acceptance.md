@@ -42,7 +42,12 @@ cd backend && PYTHONPATH=src /tmp/sr-venv/bin/python -m pytest tests/showrunner 
 
 ---
 
-### UAT-S4 — Sprint 4: Showrunner Rooms & Gates  ☐ (executes UAT-2; UAT-PROD-002/003/008)
+### UAT-S4 — Sprint 4: Showrunner Rooms & Gates  ◑ CODE COMPLETE / live-run pending
+- Deterministic cores unit-tested (16 tests): disagreement comparator (stance + block + historian field-conflict, no false consensus), gate mapping `gate_target`, `idempotent_transition`, room rosters = exact PRD skills, `build_requests`, briefing format, event payloads.
+- Services: `RoomService` (fan-out → persist invocation+contribution → comparator → events), `GateService` (immutable ApprovalGate + frozen dissent snapshot + state advance), `EpisodeService` (create + idempotent advance).
+- API live: `POST /series/{id}/story-room`, `/episodes/{id}/production-desk` (background jobs), `GET /episodes/{id}`, `/contributions`, `/disagreements`, `POST /greenlights/{gate}` (budget reserve at episode gate → `409 budget_exceeded`).
+- **Observed:** 60 tests pass (showrunner suite); ruff clean. **Gate:** pessimism → closed `asr-n88`.
+- **PENDING live-run (asr-05c, needs DB+Ollama):** UAT-2 (all), UAT-PROD-002/003/008. Background jobs use FastAPI BackgroundTasks (ARQ offload is a later enhancement).
 ### UAT-S5 — Sprint 5: Episode Room UI  ☐ (executes UAT-4)
 ### UAT-S6 — Sprint 6: Media Production  ☐ (executes UAT-PROD-005/006/007; UAT-COST-002)
 ### UAT-S7 — Sprint 7: Cloud & Submission  ☐ (executes UAT-6; UAT-SKILL-006; UAT-SUB-*)
