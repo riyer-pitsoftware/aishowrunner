@@ -59,6 +59,11 @@ async def lifespan(app: FastAPI):
 
     init_registry()
 
+    # Append-only canon / approval immutability guards (TRD §10.2, §8.3)
+    from chronocanvas.showrunner.canon import install_canon_guards
+
+    install_canon_guards()
+
     try:
         await init_checkpointer()
     except Exception as e:
