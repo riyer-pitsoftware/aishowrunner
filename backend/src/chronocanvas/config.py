@@ -150,6 +150,13 @@ class Settings(BaseSettings):
     skill_timeout_s: float = 120.0
     skill_max_concurrent: int = 3
 
+    # ── Cost & Budgeting (TRD §6.4) — locked defaults ──────────────────────
+    budget_series_limit_usd: float = 200.0
+    budget_episode_limit_usd: float = 20.0
+    budget_soft_pct: float = 0.8
+    budget_hard_behavior: str = "block"  # block|warn
+    pricing_path: str = ""  # default: <repo>/config/pricing.yaml
+
     # Admin API authentication (required when enable_admin_api=True on GCP)
     admin_api_key: str = ""
 

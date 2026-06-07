@@ -1,0 +1,29 @@
+# AI Showrunner — pricing table (TRD §6.2). Single source of truth for $.
+# USD per 1,000,000 tokens for text; per-unit for media.
+# Local Ollama is free. <verify> cloud values are filled in Sprint 7 (asr-av5.2)
+# against live DashScope pricing; until then cloud cost is reported as $0 with
+# cost_confidence=estimated.
+version: 1
+
+text:
+  ollama:
+    input_per_1m: 0.0
+    output_per_1m: 0.0
+  qwen-cloud:
+    # per-model overrides; "default" applies when the model id is unlisted
+    default: { input_per_1m: 0.0, output_per_1m: 0.0 }   # <verify>
+    qwen-turbo: { input_per_1m: 0.0, output_per_1m: 0.0 }  # <verify>
+    qwen-plus: { input_per_1m: 0.0, output_per_1m: 0.0 }   # <verify>
+    qwen-max: { input_per_1m: 0.0, output_per_1m: 0.0 }    # <verify>
+
+media:
+  image: { unit: per_image, price: 0.0 }       # Alibaba Wan text-to-image  <verify>
+  video: { unit: per_second, price: 0.0 }      # Alibaba Wan text-to-video  <verify>
+  tts: { unit: per_1k_chars, price: 0.0 }       # CosyVoice / Qwen-TTS       <verify>
+
+# Estimation defaults (deterministic pre-flight estimate, TRD §6.5)
+estimate:
+  avg_skill_input_tokens: 1200
+  avg_skill_output_tokens: 500
+  default_video_seconds: 8
+  default_tts_chars: 600

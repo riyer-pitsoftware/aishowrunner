@@ -6,6 +6,7 @@ from chronocanvas.api.routes import (
     auth,
     config,
     conversation,
+    cost,
     diagnostics,
     eval_viewer,
     export,
@@ -33,6 +34,7 @@ api_router.include_router(auth.router)
 api_router.include_router(health.router)
 api_router.include_router(skills.router)
 api_router.include_router(series.router)
+api_router.include_router(cost.router)
 api_router.include_router(figures.router)
 api_router.include_router(timeline.router)
 if settings.enable_face_upload:

@@ -7,6 +7,7 @@ import uuid
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from chronocanvas.db.models.skill_invocation import SkillInvocation
+from chronocanvas.showrunner.cost.pricing import price_skill_result
 from chronocanvas.showrunner.skills.port import SkillCallRequest, SkillCallResult
 
 
@@ -19,8 +20,14 @@ def _as_uuid(value) -> uuid.UUID | None:
         return None
 
 
-def build_invocation(req: SkillCallRequest, result: SkillCallResult) -> SkillInvocation:
+def build_invocation(
+    req: SkillCallRequest, result: SkillCallResult, pricing: dict | None = None
+) -> SkillInvocation:
     contribution = result.contribution
+    cost_usd, cost_confidence = price_skill_result(
+        result.model, result.input_tokens, result.output_tokens,
+        result.tokens_estimated, pricing,
+    )
     return SkillInvocation(
         series_id=_as_uuid(req.series_id),
         episode_id=_as_uuid(req.episode_id),
@@ -36,8 +43,8 @@ def build_invocation(req: SkillCallRequest, result: SkillCallResult) -> SkillInv
         cached_tokens=result.cached_tokens,
         tokens_estimated=result.tokens_estimated,
         duration_ms=result.duration_ms,
-        cost_usd=0.0,  # populated by Cost & Budgeting subsystem (asr-3mk.*)
-        cost_confidence="estimated" if result.tokens_estimated else "exact",
+        cost_usd=cost_usd,
+        cost_confidence=cost_confidence,
         status=result.status,
         error=result.error,
         stance=(contribution.stance.value if contribution else None),

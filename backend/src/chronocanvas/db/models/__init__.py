@@ -6,6 +6,11 @@ from chronocanvas.db.models.neo import NeoCharacter, NeoFaceSwap, NeoImage, NeoS
 from chronocanvas.db.models.period import Period
 from chronocanvas.db.models.request import GenerationRequest
 from chronocanvas.db.models.research_cache import ResearchCache
+from chronocanvas.db.models.showrunner_cost import (
+    Budget,
+    BudgetReservation,
+    MediaGeneration,
+)
 from chronocanvas.db.models.showrunner_episode import (
     AudienceChoice,
     Beat,
@@ -39,6 +44,8 @@ __all__ = [
     "AuditLog",
     "Beat",
     "BranchProposal",
+    "Budget",
+    "BudgetReservation",
     "CanonFact",
     "CanonMutation",
     "Character",
@@ -46,6 +53,7 @@ __all__ = [
     "Figure",
     "GeneratedImage",
     "GenerationRequest",
+    "MediaGeneration",
     "NeoCharacter",
     "NeoFaceSwap",
     "NeoImage",
