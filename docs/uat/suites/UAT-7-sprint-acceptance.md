@@ -48,6 +48,14 @@ cd backend && PYTHONPATH=src /tmp/sr-venv/bin/python -m pytest tests/showrunner 
 - API live: `POST /series/{id}/story-room`, `/episodes/{id}/production-desk` (background jobs), `GET /episodes/{id}`, `/contributions`, `/disagreements`, `POST /greenlights/{gate}` (budget reserve at episode gate → `409 budget_exceeded`).
 - **Observed:** 60 tests pass (showrunner suite); ruff clean. **Gate:** pessimism → closed `asr-n88`.
 - **PENDING live-run (asr-05c, needs DB+Ollama):** UAT-2 (all), UAT-PROD-002/003/008. Background jobs use FastAPI BackgroundTasks (ARQ offload is a later enhancement).
-### UAT-S5 — Sprint 5: Episode Room UI  ☐ (executes UAT-4)
+### UAT-S5 — Sprint 5: Episode Room UI  ◑ CODE COMPLETE / in-browser verify pending
+- Shared frontend foundation: `api/showrunner/types.ts` (mirrors backend schemas), `api/showrunner/hooks.ts` (React Query hooks for series/canon/episode/rooms/greenlight/budget/cost), `components/showrunner/stance.ts`.
+- Three-room shell `pages/EpisodeRoom.tsx` (asr-0ei.1): one room active/expanded, others compact/clickable; follows episode lifecycle until a room is pinned. Route `/room?series=&episode=` wired in `App.tsx`; sidebar "Episode Room" item added (default + hackathon nav).
+- Persistent 9:16 stage `Stage916.tsx` (asr-0ei.5): right rail across all rooms; status placeholder until media lands (Sprint 6).
+- Story Room (asr-0ei.2/.6): `StoryRoomPanel` (convene → navigate; CanonRail + contribution feed), `ContributionCard` (authorship + stance + progressive disclosure), `CanonRail`, `BranchProposals` (forward-compatible).
+- Production Desk (asr-0ei.3/.7): `ProductionDeskPanel`, `BudgetBar` (stacked spent/reserved vs limit + soft-cap marker), `CostPanel` (rollup + invocation table + pre-flight estimate w/ outcome), `ShotTimeline` (production-desk contributions; shot strip stubbed for Sprint 6).
+- Greenlight (asr-0ei.4): `GreenlightPanel` (status + derived gate + council roster), `VerdictControls` (per-gate verdicts, episode-gate estimate_usd, 409 budget_exceeded callout), `DisagreementList` (verbatim per-skill stances — dissent preserved, UAT-TEAM-004/005).
+- **Built via shared foundation (inline) + 3 parallel agents on disjoint panel files.** Panels typed against the foundation; signatures verified against the shell by inspection. **No `node_modules` in the lite fork → `tsc`/`vite build` not run here.**
+- **PENDING in-browser verify (executes UAT-4):** `npm i && npm run dev` against a live backend (DB+Ollama, asr-05c); walk the three rooms, convene, greenlight, budget surfaces, 9:16 stage.
 ### UAT-S6 — Sprint 6: Media Production  ☐ (executes UAT-PROD-005/006/007; UAT-COST-002)
 ### UAT-S7 — Sprint 7: Cloud & Submission  ☐ (executes UAT-6; UAT-SKILL-006; UAT-SUB-*)

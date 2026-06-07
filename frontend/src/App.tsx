@@ -18,6 +18,7 @@ import { EvalViewer } from '@/pages/EvalViewer';
 import { ModeSelector } from '@/pages/ModeSelector';
 import { LiveStory } from '@/pages/LiveStory';
 import { LiveSession } from '@/pages/LiveSession';
+import { EpisodeRoom } from '@/pages/EpisodeRoom';
 import { Login } from '@/pages/Login';
 
 function getPage(path: string, hackathonMode: boolean) {
@@ -68,6 +69,8 @@ function getPage(path: string, hackathonMode: boolean) {
       return <Memory />;
     case '/eval':
       return <EvalViewer />;
+    case '/room':
+      return <EpisodeRoom />;
     case '/live-story':
       return <LiveStory />;
     case '/live-session':

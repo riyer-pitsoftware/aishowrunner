@@ -19,6 +19,7 @@ import {
   Wrench,
   Zap,
   Mic,
+  Clapperboard,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useHackathonMode } from '@/api/hooks/useConfig';
@@ -26,6 +27,7 @@ import { useHackathonMode } from '@/api/hooks/useConfig';
 const defaultNavItems = [
   { label: 'Home', href: '/', icon: Home },
   { label: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
+  { label: 'Episode Room', href: '/room', icon: Clapperboard },
   { label: 'Timeline', href: '/timeline', icon: Scroll },
   { label: 'Figures', href: '/figures', icon: Users },
   { label: 'Generate', href: '/generate', icon: Image },
@@ -41,6 +43,7 @@ const defaultNavItems = [
 
 // Hackathon mode: only the creative storytelling essentials
 const hackathonPrimaryNav = [
+  { label: 'Episode Room', href: '/room', icon: Clapperboard },
   { label: 'Story Director', href: '/generate?mode=creative_story', icon: Image },
   { label: 'Live Story', href: '/live-story', icon: Zap },
   { label: 'Live Session', href: '/live-session', icon: Mic },
