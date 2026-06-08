@@ -1,0 +1,170 @@
+# AI Showrunner — Alibaba Cloud ECS deployment (bead asr-av5.3, TRD §14)
+#
+# Pragmatic single-host stack for an ECS instance: api + worker + frontend +
+# containerized Postgres(pgvector) + Redis. Reuses the repo's docker/Dockerfile.api
+# and docker/Dockerfile.frontend verbatim — no image changes.
+#
+# CRITICAL ROUTING NOTE (read this before you deploy):
+#   DEPLOYMENT_MODE is set to "hybrid", NOT "gcp". Setting it to "gcp" makes
+#   chronocanvas.config.Settings auto-force hackathon_mode + hackathon_strict_gemini
+#   (Gemini-only routing) — which is wrong for a Qwen/Alibaba deployment. The
+#   skill plane is flipped to Qwen Cloud purely via HARNESS_MODELS_PATH below.
+#   See ./README.md "Why DEPLOYMENT_MODE must NOT be gcp".
+#
+# Build context is the REPO ROOT, so run compose with -f pointing here AND
+# --project-directory at the repo root, e.g.:
+#   docker compose --project-directory . \
+#     -f deploy/alibaba/docker-compose.alibaba.yml up -d
+# (deploy.sh in this directory does exactly that.)
+#
+# All secrets/config come from env (the operator's .env.alibaba). Nothing is
+# hardcoded. Required vars are listed in .env.alibaba.example.
+
+services:
+  db:
+    image: pgvector/pgvector:pg16
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-chronocanvas}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
+      POSTGRES_DB: ${POSTGRES_DB:-chronocanvas}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    # Not published to the host — only reachable on the compose network.
+    expose:
+      - "5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-chronocanvas}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    security_opt:
+      - no-new-privileges:true
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    expose:
+      - "6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    security_opt:
+      - no-new-privileges:true
+
+  api:
+    image: ${API_IMAGE:-ai-showrunner-api:latest}
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.api
+    restart: unless-stopped
+    environment:
+      # ── Core wiring ──────────────────────────────────────────────────
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-chronocanvas}:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}@db:5432/${POSTGRES_DB:-chronocanvas}
+      REDIS_URL: redis://redis:6379/0
+      PYTHONPATH: /app/src
+      RUN_MIGRATIONS: "true"
+      # ── Skill plane → Qwen Cloud (see CRITICAL ROUTING NOTE above) ────
+      DEPLOYMENT_MODE: hybrid
+      HARNESS_MODELS_PATH: /app/.harness/models.cloud.yaml
+      DASHSCOPE_API_KEY: ${DASHSCOPE_API_KEY:?DASHSCOPE_API_KEY is required}
+      QWEN_CLOUD_API_KEY: ${QWEN_CLOUD_API_KEY:-}
+      QWEN_CLOUD_BASE_URL: ${QWEN_CLOUD_BASE_URL:-https://dashscope-intl.aliyuncs.com/compatible-mode/v1}
+      EVAL_ENABLED: ${EVAL_ENABLED:-true}
+      EVAL_MODEL: ${EVAL_MODEL:-qwen-cloud/qwen-plus}
+      # ── Security / access ────────────────────────────────────────────
+      SECRET_KEY: ${SECRET_KEY:?SECRET_KEY is required (openssl rand -hex 32)}
+      APP_PASSWORD: ${APP_PASSWORD:?APP_PASSWORD is required for a public deployment}
+      ADMIN_API_KEY: ${ADMIN_API_KEY:-}
+      CORS_ORIGINS: ${CORS_ORIGINS:-["http://localhost"]}
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      LOG_FORMAT: ${LOG_FORMAT:-json}
+      # ── Storage (persistent volume) ──────────────────────────────────
+      OUTPUT_DIR: /app/output
+      ARCHIVE_DIR: /app/archive
+      UPLOAD_DIR: /app/uploads
+    expose:
+      - "8000"
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - ./.harness:/app/.harness:ro
+      - output:/app/output
+      - archive:/app/archive
+      - uploads:/app/uploads
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    tmpfs:
+      - /tmp
+
+  worker:
+    image: ${API_IMAGE:-ai-showrunner-api:latest}
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.api
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-chronocanvas}:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}@db:5432/${POSTGRES_DB:-chronocanvas}
+      REDIS_URL: redis://redis:6379/0
+      PYTHONPATH: /app/src
+      RUN_MIGRATIONS: "false"
+      DEPLOYMENT_MODE: hybrid
+      HARNESS_MODELS_PATH: /app/.harness/models.cloud.yaml
+      DASHSCOPE_API_KEY: ${DASHSCOPE_API_KEY:?DASHSCOPE_API_KEY is required}
+      QWEN_CLOUD_API_KEY: ${QWEN_CLOUD_API_KEY:-}
+      QWEN_CLOUD_BASE_URL: ${QWEN_CLOUD_BASE_URL:-https://dashscope-intl.aliyuncs.com/compatible-mode/v1}
+      EVAL_ENABLED: ${EVAL_ENABLED:-true}
+      EVAL_MODEL: ${EVAL_MODEL:-qwen-cloud/qwen-plus}
+      SECRET_KEY: ${SECRET_KEY:?SECRET_KEY is required (openssl rand -hex 32)}
+      OUTPUT_DIR: /app/output
+      ARCHIVE_DIR: /app/archive
+      UPLOAD_DIR: /app/uploads
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - ./.harness:/app/.harness:ro
+      - output:/app/output
+      - archive:/app/archive
+      - uploads:/app/uploads
+    command: ["arq", "chronocanvas.worker.WorkerSettings"]
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    tmpfs:
+      - /tmp
+
+  frontend:
+    image: ${FRONTEND_IMAGE:-ai-showrunner-frontend:latest}
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.frontend
+    restart: unless-stopped
+    # Public entrypoint. nginx (listens 8080 in-container) proxies /api/ → api:8000.
+    # Maps to host port 80 so the ECS security group only needs 80/443 open.
+    ports:
+      - "${HTTP_PORT:-80}:8080"
+    depends_on:
+      - api
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    tmpfs:
+      - /tmp
+
+volumes:
+  pgdata:
+  output:
+  archive:
+  uploads:
