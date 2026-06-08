@@ -8,6 +8,7 @@ from chronocanvas.llm.providers.claude import ClaudeProvider
 from chronocanvas.llm.providers.gemini import GeminiProvider
 from chronocanvas.llm.providers.ollama import OllamaProvider
 from chronocanvas.llm.providers.openai import OpenAIProvider
+from chronocanvas.llm.providers.qwen_cloud import QwenCloudProvider
 from chronocanvas.llm.rate_limiter import RateLimiter
 from chronocanvas.redis_client import publish_progress
 from chronocanvas.runtime_config import RuntimeConfig
@@ -36,6 +37,7 @@ class LLMRouter:
             "claude": ClaudeProvider(),
             "openai": OpenAIProvider(),
             "gemini": GeminiProvider(),
+            "qwen-cloud": QwenCloudProvider(),
         }
         self.rate_limiter = RateLimiter(
             max_rpm=settings.rate_limit_rpm,

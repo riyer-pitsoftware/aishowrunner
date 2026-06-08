@@ -155,6 +155,11 @@ class Settings(BaseSettings):
     # providers (local dev / CI / offline demo) so the DAG still runs end-to-end.
     dashscope_api_key: str = ""
     dashscope_base_url: str = "https://dashscope-intl.aliyuncs.com/api/v1"
+    # Skill/text Plane via Qwen Cloud (DashScope OpenAI-compatible endpoint,
+    # asr-av5.1). The DashScope key doubles as the Qwen Cloud key: if
+    # qwen_cloud_api_key is unset, the provider falls back to dashscope_api_key.
+    qwen_cloud_api_key: str = ""
+    qwen_cloud_base_url: str = "https://dashscope-intl.aliyuncs.com/compatible-mode/v1"
     wan_image_model: str = "wan2.2-t2i-flash"  # text-to-image
     wan_video_model: str = "wan2.2-t2v-plus"  # text-to-video
     tts_provider_model: str = "cosyvoice-v1"  # CosyVoice / Qwen-TTS

@@ -1,8 +1,8 @@
 # AI Showrunner — pricing table (TRD §6.2). Single source of truth for $.
 # USD per 1,000,000 tokens for text; per-unit for media.
-# Local Ollama is free. <verify> cloud values are filled in Sprint 7 (asr-av5.2)
-# against live DashScope pricing; until then cloud cost is reported as $0 with
-# cost_confidence=estimated.
+# Local Ollama is free. Cloud values verified in Sprint 7 (asr-av5.2) against
+# the published Alibaba Cloud Model Studio (DashScope) international pricing.
+# Source: https://www.alibabacloud.com/help/en/model-studio/model-pricing
 version: 1
 
 text:
@@ -10,16 +10,23 @@ text:
     input_per_1m: 0.0
     output_per_1m: 0.0
   qwen-cloud:
-    # per-model overrides; "default" applies when the model id is unlisted
-    default: { input_per_1m: 0.0, output_per_1m: 0.0 }   # <verify>
-    qwen-turbo: { input_per_1m: 0.0, output_per_1m: 0.0 }  # <verify>
-    qwen-plus: { input_per_1m: 0.0, output_per_1m: 0.0 }   # <verify>
-    qwen-max: { input_per_1m: 0.0, output_per_1m: 0.0 }    # <verify>
+    # USD per 1M tokens, DashScope international (ap-southeast-1) pay-as-you-go.
+    # per-model overrides; "default" applies when the model id is unlisted.
+    # Default mirrors qwen-plus (the balanced tier / eval_model).
+    default: { input_per_1m: 0.40, output_per_1m: 1.20 }    # <verify 2026-06-07: alibabacloud.com/help/en/model-studio/model-pricing>
+    qwen-turbo: { input_per_1m: 0.05, output_per_1m: 0.20 }  # <verify 2026-06-07: model-studio pricing, intl non-thinking>
+    qwen-plus: { input_per_1m: 0.40, output_per_1m: 1.20 }   # <verify 2026-06-07: model-studio pricing, intl non-thinking>
+    qwen-max: { input_per_1m: 1.60, output_per_1m: 6.40 }    # <verify 2026-06-07: model-studio pricing, intl, no tiered pricing>
 
 media:
-  image: { unit: per_image, price: 0.0 }       # Alibaba Wan text-to-image  <verify>
-  video: { unit: per_second, price: 0.0 }      # Alibaba Wan text-to-video  <verify>
-  tts: { unit: per_1k_chars, price: 0.0 }       # CosyVoice / Qwen-TTS       <verify>
+  # Alibaba Wan text-to-image (wan2.2-t2i), international.
+  image: { unit: per_image, price: 0.05 }       # <verify 2026-06-07: model-studio pricing, wan2.2-t2i intl>
+  # Alibaba Wan text-to-video (wan2.2-t2v-plus) at 1080P (portrait default).
+  # 480P is $0.02/s; we default to portrait 1080P (config media_portrait_*).
+  video: { unit: per_second, price: 0.10 }      # <verify 2026-06-07: model-studio pricing, wan2.2-t2v-plus 1080P intl>
+  # CosyVoice TTS. cosyvoice-v1 is not separately priced; nearest published rate
+  # is cosyvoice-v2 at $0.286706 / 10k chars = $0.0287 / 1k chars.
+  tts: { unit: per_1k_chars, price: 0.0287 }    # <verify 2026-06-07: model-studio text-to-speech, cosyvoice-v2 proxy for v1>
 
 # Estimation defaults (deterministic pre-flight estimate, TRD §6.5)
 estimate:

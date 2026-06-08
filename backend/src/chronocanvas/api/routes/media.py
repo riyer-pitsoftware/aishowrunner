@@ -39,6 +39,26 @@ async def produce_episode(
     return {"episode_id": str(episode_id), "accepted": True, "stage": "produce"}
 
 
+@router.post("/episodes/{episode_id}/plan-shots", status_code=202)
+async def plan_shots(
+    episode_id: uuid.UUID,
+    background: BackgroundTasks,
+    session: AsyncSession = Depends(get_session),
+):
+    """Derive the Shot DAG from the episode's approved plan (TRD §9.1).
+
+    This is the stage that *creates* the shots ``produce`` later walks.
+    """
+    episode = await EpisodeService(session).get(episode_id)
+    if episode is None:
+        raise HTTPException(status_code=404, detail="episode not found")
+
+    from chronocanvas.showrunner.media.planner import run_plan_job
+
+    background.add_task(run_plan_job, episode_id)
+    return {"episode_id": str(episode_id), "accepted": True, "stage": "plan"}
+
+
 @router.post("/episodes/{episode_id}/finalize", status_code=202)
 async def finalize_episode(
     episode_id: uuid.UUID,
