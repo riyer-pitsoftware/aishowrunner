@@ -1,87 +1,178 @@
-// ShotTimeline — production desk contributions + forward-compatible shot strip
-// (asr-0ei.3, TRD §6.5). Shot/asset data is a Sprint 6 deliverable; this
-// component renders an empty timeline strip now and is wired for live data later.
-import { Film } from 'lucide-react';
+// ShotTimeline — production desk contributions + live shot strip (asr-0ei.3,
+// TRD §6.5). Shots + artifacts are Sprint 6 media-production deliverables; this
+// component renders an ordered, live-polled strip of shot cards with per-shot
+// thumbnails, status chips, and regenerate controls.
+import { Film, RefreshCw, Loader2, ImageOff } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { cn } from '@/lib/utils';
-import { useContributions } from '@/api/showrunner/hooks';
+import {
+  useContributions,
+  useShots,
+  useArtifacts,
+  useRegenerateShot,
+} from '@/api/showrunner/hooks';
 import { stanceVariant, stanceLabel } from '@/components/showrunner/stance';
+import type { Contribution, ProductionArtifact, Shot } from '@/api/showrunner/types';
 
-// ── Shot state chip types ─────────────────────────────────────────────────────
-// TODO (Sprint 6): Replace empty `shots` array with real data from the media-
-// production endpoint (e.g. GET /episodes/{id}/shots) once that route exists.
-// ShotState and ShotChip are already wired — just populate the array.
+// ── Shot status chip ──────────────────────────────────────────────────────────
 
-type ShotState = 'planned' | 'generating' | 'ready' | 'stale';
+type BadgeVariant = 'default' | 'secondary' | 'destructive' | 'outline' | 'success' | 'warning';
 
-interface Shot {
-  id: string;
-  label: string;
-  state: ShotState;
-}
-
-function shotStateVariant(
-  state: ShotState,
-): 'secondary' | 'warning' | 'success' | 'outline' {
-  switch (state) {
-    case 'planned':
-      return 'secondary';
-    case 'generating':
-      return 'warning';
+function shotStatusVariant(status: string): BadgeVariant {
+  switch (status) {
     case 'ready':
       return 'success';
+    case 'generating':
+      return 'warning';
     case 'stale':
-      return 'outline';
+      return 'warning';
+    case 'approved':
+      return 'default';
+    case 'failed':
+    case 'error':
+      return 'destructive';
+    case 'pending':
+    default:
+      return 'secondary';
   }
 }
 
-function ShotChip({ shot }: { shot: Shot }) {
+// ── Shot thumbnail ────────────────────────────────────────────────────────────
+
+function ShotThumbnail({ artifact }: { artifact: ProductionArtifact | undefined }) {
+  const isVideo =
+    artifact?.kind === 'video' || (artifact?.mime_type?.startsWith('video/') ?? false);
+  const isImage =
+    artifact?.kind === 'image' || (artifact?.mime_type?.startsWith('image/') ?? false);
+
   return (
     <div
-      className={cn(
-        'flex flex-col items-center gap-1 min-w-[64px] px-2 py-1.5 rounded-md border border-[var(--border)] bg-[var(--muted)] text-center',
-      )}
+      className="relative w-full overflow-hidden rounded border border-[var(--border)] bg-black"
+      style={{ aspectRatio: '9 / 16' }}
     >
-      <Badge variant={shotStateVariant(shot.state)} className="text-[9px] px-1.5 py-0">
-        {shot.state}
-      </Badge>
-      <span className="text-[10px] text-[var(--muted-foreground)] truncate max-w-[56px]" title={shot.label}>
-        {shot.label}
-      </span>
+      {artifact?.url && isVideo ? (
+        <video src={artifact.url} controls className="h-full w-full object-cover" />
+      ) : artifact?.url && isImage ? (
+        <img
+          src={artifact.url}
+          alt="Shot preview"
+          className="h-full w-full object-cover"
+        />
+      ) : (
+        <div className="flex h-full w-full items-center justify-center text-[var(--muted-foreground)]">
+          <ImageOff className="h-5 w-5" />
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Shot card ─────────────────────────────────────────────────────────────────
+
+function ShotCard({
+  shot,
+  artifact,
+  onRegenerate,
+  regenerating,
+}: {
+  shot: Shot;
+  artifact: ProductionArtifact | undefined;
+  onRegenerate: (shotId: string) => void;
+  regenerating: boolean;
+}) {
+  const generating = shot.status === 'generating';
+
+  return (
+    <div className="flex w-[120px] shrink-0 flex-col gap-1.5 rounded-md border border-[var(--border)] bg-[var(--muted)] p-2">
+      <div className="flex items-center justify-between">
+        <span className="text-[10px] font-semibold text-[var(--muted-foreground)] tabular-nums">
+          #{shot.index + 1}
+        </span>
+        <Badge
+          variant={shotStatusVariant(shot.status)}
+          className={cn('text-[9px] px-1.5 py-0', generating && 'animate-pulse')}
+        >
+          {shot.status}
+        </Badge>
+      </div>
+
+      <ShotThumbnail artifact={artifact} />
+
+      {shot.description && (
+        <p
+          className="text-[10px] leading-tight text-[var(--foreground)] line-clamp-2"
+          title={shot.description}
+        >
+          {shot.description}
+        </p>
+      )}
+
+      <Button
+        size="sm"
+        variant="outline"
+        disabled={regenerating || generating}
+        onClick={() => onRegenerate(shot.id)}
+        className="mt-auto h-6 w-full gap-1 px-1 text-[10px]"
+      >
+        {regenerating || generating ? (
+          <Loader2 className="h-3 w-3 animate-spin" />
+        ) : (
+          <>
+            <RefreshCw className="h-3 w-3" />
+            Regenerate
+          </>
+        )}
+      </Button>
     </div>
   );
 }
 
 // ── Timeline strip ────────────────────────────────────────────────────────────
 
-function TimelineStrip({ shots }: { shots: Shot[] }) {
-  return (
-    <div className="rounded-md border border-[var(--border)] bg-[var(--card)] px-3 py-2">
-      {shots.length === 0 ? (
+function TimelineStrip({ episodeId }: { episodeId: string }) {
+  const { data: shots } = useShots(episodeId, true);
+  const { data: artifacts } = useArtifacts(episodeId, true);
+  const regenerate = useRegenerateShot(episodeId);
+
+  const artifactById = new Map<string, ProductionArtifact>(
+    (artifacts ?? []).map((a) => [a.id, a]),
+  );
+
+  const ordered = [...(shots ?? [])].sort((a, b) => a.index - b.index);
+
+  if (ordered.length === 0) {
+    return (
+      <div className="rounded-md border border-[var(--border)] bg-[var(--card)] px-3 py-2">
         <div className="flex flex-col items-center gap-1.5 py-3 text-center">
           <Film className="h-5 w-5 text-[var(--muted-foreground)]" />
           <p className="text-xs text-[var(--muted-foreground)]">
-            Shots and assets appear here once production runs.
-          </p>
-          <p className="text-[10px] text-[var(--muted-foreground)]/60">
-            Sprint 6 · media production
+            No shots planned yet — produce to generate.
           </p>
         </div>
-      ) : (
-        <div className="flex gap-2 overflow-x-auto pb-1">
-          {shots.map((shot) => (
-            <ShotChip key={shot.id} shot={shot} />
-          ))}
-        </div>
-      )}
+      </div>
+    );
+  }
+
+  return (
+    <div className="rounded-md border border-[var(--border)] bg-[var(--card)] px-3 py-2">
+      <div className="flex gap-2 overflow-x-auto pb-1">
+        {ordered.map((shot) => (
+          <ShotCard
+            key={shot.id}
+            shot={shot}
+            artifact={shot.artifact_id ? artifactById.get(shot.artifact_id) : undefined}
+            onRegenerate={(shotId) => regenerate.mutate(shotId)}
+            regenerating={regenerate.isPending && regenerate.variables === shot.id}
+          />
+        ))}
+      </div>
     </div>
   );
 }
 
 // ── Contribution card ─────────────────────────────────────────────────────────
-
-import type { Contribution } from '@/api/showrunner/types';
 
 function ContributionCard({ contrib }: { contrib: Contribution }) {
   return (
@@ -110,9 +201,6 @@ function ContributionCard({ contrib }: { contrib: Contribution }) {
 export function ShotTimeline({ episodeId }: { episodeId: string }) {
   const { data: contributions } = useContributions(episodeId, true);
 
-  // TODO (Sprint 6): fetch shots from media endpoint and pass real data here.
-  const shots: Shot[] = [];
-
   const deskContribs = (contributions ?? []).filter(
     (c) => c.room === 'production_desk',
   );
@@ -126,8 +214,8 @@ export function ShotTimeline({ episodeId }: { episodeId: string }) {
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
-        {/* Forward-compatible shot strip */}
-        <TimelineStrip shots={shots} />
+        {/* Live shot strip */}
+        <TimelineStrip episodeId={episodeId} />
 
         {/* Production desk contributions */}
         {deskContribs.length > 0 && (

@@ -1,9 +1,13 @@
 // ProductionDeskPanel — the Production Desk's main panel within EpisodeRoom.
 // Renders BudgetBar, Convene button, ShotTimeline, and CostPanel.
 // asr-0ei.3 + asr-0ei.7, TRD §6.5–§6.6.
-import { AlertCircle, Clapperboard, Loader2 } from 'lucide-react';
+import { AlertCircle, Clapperboard, Film, Loader2, Scissors } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { useConveneProductionDesk } from '@/api/showrunner/hooks';
+import {
+  useConveneProductionDesk,
+  useProduce,
+  useFinalize,
+} from '@/api/showrunner/hooks';
 import { BudgetBar } from '@/components/showrunner/BudgetBar';
 import { ShotTimeline } from '@/components/showrunner/ShotTimeline';
 import { CostPanel } from '@/components/showrunner/CostPanel';
@@ -28,14 +32,20 @@ function NoEpisodeState() {
 
 function ConveneSection({ episodeId }: { episodeId: string }) {
   const convene = useConveneProductionDesk(episodeId);
+  const produce = useProduce(episodeId);
+  const finalize = useFinalize(episodeId);
 
   function handleConvene() {
     convene.mutate({});
   }
 
+  const errored = [convene, produce, finalize].find((m) => m.isError);
+  const erroredVerb =
+    convene.isError ? 'convene' : produce.isError ? 'produce' : 'finalize';
+
   return (
     <div className="flex flex-col gap-2">
-      <div className="flex items-center gap-3">
+      <div className="flex flex-wrap items-center gap-3">
         <Button
           onClick={handleConvene}
           disabled={convene.isPending}
@@ -54,15 +64,55 @@ function ConveneSection({ episodeId }: { episodeId: string }) {
             </>
           )}
         </Button>
+
+        <Button
+          onClick={() => produce.mutate()}
+          disabled={produce.isPending}
+          size='sm'
+          variant='secondary'
+          className='flex items-center gap-1.5'
+        >
+          {produce.isPending ? (
+            <>
+              <Loader2 className='h-3 w-3 animate-spin' />
+              Producing…
+            </>
+          ) : (
+            <>
+              <Film className='h-3 w-3' />
+              Produce
+            </>
+          )}
+        </Button>
+
+        <Button
+          onClick={() => finalize.mutate()}
+          disabled={finalize.isPending}
+          size='sm'
+          variant='outline'
+          className='flex items-center gap-1.5'
+        >
+          {finalize.isPending ? (
+            <>
+              <Loader2 className='h-3 w-3 animate-spin' />
+              Finalizing…
+            </>
+          ) : (
+            <>
+              <Scissors className='h-3 w-3' />
+              Finalize
+            </>
+          )}
+        </Button>
       </div>
 
-      {convene.isError && (
+      {errored && (
         <div className='flex items-center gap-2 rounded-md border border-red-500/30 bg-red-500/10 px-3 py-2 text-sm text-red-400'>
           <AlertCircle className='h-4 w-4 shrink-0' />
           <span>
-            {convene.error instanceof Error
-              ? convene.error.message
-              : 'Failed to convene — please retry.'}
+            {errored.error instanceof Error
+              ? errored.error.message
+              : `Failed to ${erroredVerb} — please retry.`}
           </span>
         </div>
       )}

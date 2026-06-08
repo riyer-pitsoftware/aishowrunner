@@ -14,9 +14,12 @@ import type {
   GreenlightRequest,
   GreenlightResult,
   Invocation,
+  MediaAccepted,
+  ProductionArtifact,
   RoomAccepted,
   Series,
   SeriesCreate,
+  Shot,
 } from './types';
 
 const LIVE = 4000; // poll interval while a room job runs
@@ -146,5 +149,49 @@ export function useEstimate(episodeId: string) {
   return useMutation({
     mutationFn: (body: EstimateRequest) =>
       api.post<Estimate>(`/episodes/${episodeId}/estimate`, body),
+  });
+}
+
+// ── Media production (Sprint 6) ──────────────────────────────────────────────
+export function useShots(episodeId?: string, live = false) {
+  return useQuery({
+    queryKey: ['sr', 'shots', episodeId],
+    queryFn: () => api.get<Shot[]>(`/episodes/${episodeId}/shots`),
+    enabled: !!episodeId,
+    refetchInterval: live ? LIVE : false,
+  });
+}
+
+export function useArtifacts(episodeId?: string, live = false) {
+  return useQuery({
+    queryKey: ['sr', 'artifacts', episodeId],
+    queryFn: () => api.get<ProductionArtifact[]>(`/episodes/${episodeId}/artifacts`),
+    enabled: !!episodeId,
+    refetchInterval: live ? LIVE : false,
+  });
+}
+
+export function useProduce(episodeId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: () => api.post<MediaAccepted>(`/episodes/${episodeId}/produce`, {}),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['sr'] }),
+  });
+}
+
+export function useFinalize(episodeId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: () => api.post<MediaAccepted>(`/episodes/${episodeId}/finalize`, {}),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['sr'] }),
+  });
+}
+
+export function useRegenerateShot(episodeId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (shotId: string) =>
+      api.post<MediaAccepted>(`/episodes/${episodeId}/shots/${shotId}/regenerate`, {}),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['sr', 'shots', episodeId] }),
   });
 }

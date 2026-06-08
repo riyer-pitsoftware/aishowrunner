@@ -150,6 +150,22 @@ class Settings(BaseSettings):
     skill_timeout_s: float = 120.0
     skill_max_concurrent: int = 3
 
+    # ── Showrunner: Media Production (TRD §7.1, §9) ────────────────────────
+    # Alibaba/Qwen media stack via DashScope. Empty key → deterministic mock
+    # providers (local dev / CI / offline demo) so the DAG still runs end-to-end.
+    dashscope_api_key: str = ""
+    dashscope_base_url: str = "https://dashscope-intl.aliyuncs.com/api/v1"
+    wan_image_model: str = "wan2.2-t2i-flash"  # text-to-image
+    wan_video_model: str = "wan2.2-t2v-plus"  # text-to-video
+    tts_provider_model: str = "cosyvoice-v1"  # CosyVoice / Qwen-TTS
+    tts_provider_voice: str = "longxiaochun"
+    media_video_seconds: float = 5.0  # default per-shot clip length
+    media_portrait_width: int = 1080  # 9:16 vertical
+    media_portrait_height: int = 1920
+    # Continuity eval (TRD §9.4) — critic-tier, default ON, warning not block.
+    eval_enabled: bool = True
+    eval_model: str = "qwen-cloud/qwen-plus"  # critic tier (non-coder)
+
     # ── Cost & Budgeting (TRD §6.4) — locked defaults ──────────────────────
     budget_series_limit_usd: float = 200.0
     budget_episode_limit_usd: float = 20.0

@@ -144,3 +144,37 @@ export interface RoomAccepted {
 
 // The three visible rooms (PRD §6).
 export type RoomKey = 'story_room' | 'production_desk' | 'greenlight';
+
+// ── Media Production (Sprint 6) ──────────────────────────────────────────────
+export type ShotStatus = 'pending' | 'generating' | 'ready' | 'stale' | 'approved';
+
+// GET /episodes/{id}/shots
+export interface Shot {
+  id: string;
+  index: number;
+  description: string | null;
+  inputs: Record<string, unknown> | null;
+  depends_on: string[];
+  status: ShotStatus | string;
+  artifact_id: string | null;
+}
+
+// GET /episodes/{id}/artifacts
+export interface ProductionArtifact {
+  id: string;
+  shot_id: string | null;
+  kind: 'image' | 'audio' | 'video' | 'episode' | string;
+  url: string | null;
+  mime_type: string | null;
+  version: number;
+  cost_usd: number;
+  payload: Record<string, unknown> | null;
+}
+
+// POST /episodes/{id}/{produce|finalize} and /shots/{id}/regenerate
+export interface MediaAccepted {
+  episode_id: string;
+  accepted: boolean;
+  stage?: string;
+  shot_id?: string;
+}
